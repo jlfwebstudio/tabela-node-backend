@@ -68,7 +68,7 @@
     };
 
     // Rota para upload de arquivo CSV
-    app.post('/upload', upload.single('csvFile'), async (req, res) => {
+    app.post('/upload', upload.single('file'), async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
         }
