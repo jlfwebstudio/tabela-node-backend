@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require('express');
 const multer = require('multer');
 const csvtojson = require('csvtojson');
@@ -20,7 +19,7 @@ app.use(cors({
         if (!origin) return callback(null, true);
         // Verifica se a origem da requisição está na lista de origens permitidas
         if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = `The CORS policy for this site does not not allow access from the specified Origin: ${origin}`;
+            const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
             return callback(new Error(msg), false);
         }
         return callback(null, true);
@@ -47,12 +46,14 @@ const columnMapping = {
     'Técnico': 'Técnico',
     'Prestador': 'Prestador',
     'Justificativa do Abono': 'Justificativa do Abono',
-    // 'Origem': 'Origem', // REMOVIDA A COLUNA ORIGEM DO MAPPING
     // Adicionando mapeamentos para casos onde o nome do CSV pode ser diferente do que o frontend espera
     'Grupo Serviço': 'Serviço',
     'Prestador Responsável': 'Prestador',
     'Status Contratante': 'Status',
     'Nome Técnico': 'Técnico', // Adicionado para flexibilidade
+    'Técnico Responsável': 'Técnico', // Adicionado para flexibilidade
+    'Serviço': 'Serviço', // Adicionado para flexibilidade (Serviço com 'c' ou 'ç')
+    'Tecnico': 'Técnico', // Adicionado para flexibilidade (Tecnico sem acento)
 };
 
 // Função para normalizar chaves de coluna para comparação (remove acentos, caracteres especiais, espaços extras, e converte para maiúsculas)
@@ -69,6 +70,7 @@ const normalizeKeyForComparison = (key) => {
 // Rota para upload de arquivo CSV
 app.post('/upload', upload.single('file'), async (req, res) => {
     if (!req.file) {
+        console.error('Erro: Nenhum arquivo enviado.');
         return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
     }
 
@@ -102,9 +104,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             }).fromString(csvString);
         }
 
-        console.log('JSON Array gerado pelo csvtojson (primeiras 3 linhas):', jsonArray.slice(0, 3));
+        // --- NOVO LOG PARA DEPURAR jsonArray ---
+        console.log('JSON Array gerado pelo csvtojson (primeiras 5 linhas):', jsonArray.slice(0, 5));
+        console.log('Total de linhas no jsonArray:', jsonArray.length);
+        // --- FIM NOVO LOG ---
+
         if (jsonArray.length === 0) {
-            console.warn('csvtojson gerou um array vazio ou com apenas cabeçalhos.');
+            console.warn('csvtojson gerou um array vazio ou com apenas cabeçalhos. Verifique o formato do CSV ou se há dados válidos.');
             return res.status(400).json({ error: 'O arquivo CSV foi processado, mas nenhum dado válido foi encontrado.' });
         }
 
@@ -122,9 +128,10 @@ app.post('/upload', upload.single('file'), async (req, res) => {
                 if (row[frontendHeader] !== undefined) {
                     foundValue = row[frontendHeader];
                 } else {
-                    // Se não encontrou pelo nome exato, tenta encontrar por normalização e inclusão
-                    for (const csvKey in row) {
-                        if (normalizeKeyForComparison(csvKey).includes(normalizeKeyForComparison(frontendHeader))) {
+                    // Tenta encontrar pelo nome exato com acento/sem acento, etc.
+                    const possibleCsvKeys = Object.keys(row);
+                    for (const csvKey of possibleCsvKeys) {
+                        if (normalizeKeyForComparison(csvKey) === normalizeKeyForComparison(frontendHeader)) {
                             foundValue = row[csvKey];
                             break;
                         }
@@ -133,52 +140,35 @@ app.post('/upload', upload.single('file'), async (req, res) => {
                 newRow[frontendHeader] = foundValue !== null ? foundValue : '';
             }
 
-            // Lógicas de prioridade para colunas específicas com base nos logs
+            // Lógicas de prioridade para colunas específicas com base nos logs e necessidades
             // Garante que os valores mais relevantes sejam usados
-            if (row['Contratante'] !== undefined) {
-                newRow['Contratante'] = row['Contratante'];
-            }
-            if (row['Serviço'] !== undefined) {
-                newRow['Serviço'] = row['Serviço'];
-            } else if (row['Grupo Serviço'] !== undefined) {
-                newRow['Serviço'] = row['Grupo Serviço'];
-            }
-            if (row['Técnico'] !== undefined) {
-                newRow['Técnico'] = row['Técnico'];
-            } else if (row['Nome Técnico'] !== undefined) { // Nova prioridade
-                newRow['Técnico'] = row['Nome Técnico'];
-            }
-            if (row['Prestador'] !== undefined) {
-                newRow['Prestador'] = row['Prestador'];
-            } else if (row['Prestador Responsável'] !== undefined) {
-                newRow['Prestador'] = row['Prestador Responsável'];
-            }
-            if (row['Nome Cliente'] !== undefined) {
-                newRow['Cliente'] = row['Nome Cliente'];
-            }
-            if (row['Status'] !== undefined) {
-                newRow['Status'] = row['Status'];
-            } else if (row['Status Contratante'] !== undefined) {
-                newRow['Status'] = row['Status Contratante'];
-            }
-            if (row['Justificativa do Abono'] !== undefined) {
-                newRow['Justificativa do Abono'] = row['Justificativa do Abono'];
-            }
+            // Exemplo: 'Serviço' pode vir como 'Serviço' ou 'Grupo Serviço'
+            newRow['Serviço'] = row['Serviço'] || row['Grupo Serviço'] || '';
+            newRow['Técnico'] = row['Técnico'] || row['Nome Técnico'] || row['Técnico Responsável'] || row['Tecnico'] || ''; // Adicionado 'Tecnico' sem acento
+            newRow['Prestador'] = row['Prestador'] || row['Prestador Responsável'] || '';
+            newRow['Status'] = row['Status'] || row['Status Contratante'] || '';
+            newRow['Cliente'] = row['Cliente'] || row['Nome Cliente'] || '';
+            newRow['Justificativa do Abono'] = row['Justificativa do Abono'] || '';
+            newRow['Chamado'] = row['Chamado'] || '';
+            newRow['Numero Referencia'] = row['Numero Referencia'] || '';
+            newRow['Contratante'] = row['Contratante'] || '';
+            newRow['Data Limite'] = row['Data Limite'] || '';
+            newRow['CNPJ / CPF'] = row['CNPJ / CPF'] || '';
+            newRow['Cidade'] = row['Cidade'] || '';
 
-            // A coluna 'Origem' não é mais necessária no frontend, mas se o backend a gerar,
-            // ela não será mapeada para o frontend. Se você quiser removê-la completamente
-            // do processamento, pode remover a linha abaixo.
-            // newRow['Origem'] = 'MOBY'; // Removida conforme solicitação do frontend
 
             return newRow;
         });
 
-        console.log('Dados processados (primeiras 3 linhas):', processedData.slice(0, 3));
-        console.log('--- FIM DO PROCESSAMENTO DO CSV ---');
+        // --- NOVO LOG PARA DEPURAR processedData ---
+        console.log('Dados processados (primeiras 5 linhas):', processedData.slice(0, 5));
+        console.log('Total de linhas nos dados processados:', processedData.length);
+        // --- FIM NOVO LOG ---
+
         res.json(processedData);
 
     } catch (error) {
-        console.error('Erro ao processar o arquivo CSV:', error);
+        console.error('Erro interno do servidor ao processar o arquivo CSV:', error);
         res.status(500).json({ error: 'Erro interno do servidor ao processar o arquivo CSV.' });
     }
 });
