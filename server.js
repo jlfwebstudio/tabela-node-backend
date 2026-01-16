@@ -17,9 +17,7 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permite requisições sem 'origin' (como de Postman ou curl)
         if (!origin) return callback(null, true);
-        // Verifica se a origem da requisição está na lista de origens permitidas
         if (allowedOrigins.indexOf(origin) === -1) {
             const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
             return callback(new Error(msg), false);
@@ -43,7 +41,7 @@ const columnMapping = {
     'Serviço': 'Serviço',
     'Status': 'Status',
     'Data Limite': 'Data Limite',
-    'Nome Cliente': 'Cliente',
+    'Cliente': 'Cliente',
     'CNPJ / CPF': 'CNPJ / CPF',
     'Cidade': 'Cidade',
     'Técnico': 'Técnico',
@@ -61,8 +59,97 @@ const columnMapping = {
     'Prestador Responsável': 'Prestador',
     'Prestador Responsavel': 'Prestador', // Sem acento
     'Status Contratante': 'Status',
-    'CPF Técnico': 'CPF Técnico', // Manter para possível uso futuro, mesmo que não na tabela principal
-    'CPF Tecnico': 'CPF Técnico', // Sem acento
+    'Nome Cliente': 'Cliente', // Garante que 'Nome Cliente' seja mapeado para 'Cliente'
+    'Cod. Cliente': 'Cod. Cliente', // Manter para possível uso futuro
+    'Data Abertura': 'Data Abertura',
+    'Data Atendimento': 'Data Atendimento',
+    'Data Reg. Atendimento': 'Data Reg. Atendimento',
+    'Data Check-In': 'Data Check-In',
+    'Serial Instalado': 'Serial Instalado',
+    'Tipo Equipamento Instalado': 'Tipo Equipamento Instalado',
+    'Modelo Instalado': 'Modelo Instalado',
+    'Serial Retirado': 'Serial Retirado',
+    'Tipo Equipamento Retirado': 'Tipo Equipamento Retirado',
+    'Modelo Retirado': 'Modelo Retirado',
+    'Endereço': 'Endereço',
+    'Bairro': 'Bairro',
+    'Estado': 'Estado',
+    'CEP': 'CEP',
+    'ID Terminal': 'ID Terminal',
+    'Observações Atendimento': 'Observações Atendimento',
+    'Observações': 'Observações',
+    'Descrição Motivo': 'Descrição Motivo',
+    'Tipo Documento': 'Tipo Documento',
+    'Baixa Tecnica': 'Baixa Tecnica',
+    'Num Protocolo Técnico': 'Num Protocolo Técnico',
+    'Dt Ger. do Prot. Técnico': 'Dt Ger. do Prot. Técnico',
+    'Operadora': 'Operadora',
+    '1a Op Indicada por GTR': '1a Op Indicada por GTR',
+    '2a Op Indicada por GTR': '2a Op Indicada por GTR',
+    'Tecnologia Contratante': 'Tecnologia Contratante',
+    'Fotos': 'Fotos',
+    'Visitas': 'Visitas',
+    'Remarks': 'Remarks',
+    'Latitude Abertura': 'Latitude Abertura',
+    'Longitude Abertura': 'Longitude Abertura',
+    'Latitude Atendimento': 'Latitude Atendimento',
+    'Longitude Atendimento': 'Longitude Atendimento',
+    'Distância Abertura/Fechamento': 'Distância Abertura/Fechamento',
+    'Divergência de Chip Instalado': 'Divergência de Chip Instalado',
+    'Status do Abono': 'Status do Abono',
+    'Previsão': 'Previsão',
+    'Observação do Abono': 'Observação do Abono',
+    'Abonado Paytec': 'Abonado Paytec',
+    'Abonado Contratante': 'Abonado Contratante',
+    'Super Digital': 'Super Digital',
+    'Super Cartão': 'Super Cartão',
+    'Região': 'Região',
+    'Ramo': 'Ramo',
+    'Data Pré-Baixa': 'Data Pré-Baixa',
+    'Tipo de Faturamento': 'Tipo de Faturamento',
+    'Distancia Capital': 'Distancia Capital',
+    'Centro Trabalho': 'Centro Trabalho',
+    'Data Modificação': 'Data Modificação',
+    'CPF Técnico': 'CPF Técnico',
+    'Telefone 1': 'Telefone 1',
+    'Telefone 2': 'Telefone 2',
+    'Telefone 3': 'Telefone 3',
+    'Telefone 4': 'Telefone 4',
+    'Telefone 5': 'Telefone 5',
+    'Qtd. KIT': 'Qtd. KIT',
+    'Endereço OS - Receita': 'Endereço OS - Receita',
+    'Baixa PDA': 'Baixa PDA',
+    'Cabo Retirado': 'Cabo Retirado',
+    'Bateria Retirada': 'Bateria Retirada',
+    'Base Retirada': 'Base Retirada',
+    'Fonte Retirada': 'Fonte Retirada',
+    'Chip Retirado': 'Chip Retirado',
+    'Cabo Instalado': 'Cabo Instalado',
+    'Bateria Instalada': 'Bateria Instalada',
+    'Base Instalada': 'Base Instalada',
+    'Fonte Instalada': 'Fonte Instalada',
+    'Chip Instalado': 'Chip Instalado',
+    'FLAG_INSTALL_PELI': 'FLAG_INSTALL_PELI',
+    'Tipo Atendimento': 'Tipo Atendimento',
+    'Prestador Responsável': 'Prestador Responsável',
+    'Distância EC': 'Distância EC',
+    'Permissão Atender Fora do Perimetro': 'Permissão Atender Fora do Perimetro',
+    'Versão Aplicativo': 'Versão Aplicativo',
+    'Melhor Equipamento': 'Melhor Equipamento',
+    'Hora Inicio Sabado': 'Hora Inicio Sabado',
+    'Hora Termino Sabado': 'Hora Termino Sabado',
+    'Protocolo': 'Protocolo',
+    'Qtd. Protocolo': 'Qtd. Protocolo',
+    'Ponto Referência': 'Ponto Referência',
+    'Workday': 'Workday',
+    'E-Mail': 'E-Mail',
+    'Data Agendamento': 'Data Agendamento',
+    'Motivo Retenção': 'Motivo Retenção',
+    'Canal Credenciador EC': 'Canal Credenciador EC',
+    'Canal de Entrada': 'Canal de Entrada',
+    'Complemento': 'Complemento',
+    'Data Retorno WhatsApp': 'Data Retorno WhatsApp',
+    'Grau Parentesco': 'Grau Parentesco',
 };
 
 // Função para normalizar chaves de coluna para comparação (remove acentos, caracteres especiais, espaços extras, e converte para maiúsculas)
@@ -91,7 +178,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         // Tenta decodificar com UTF-8, depois com ISO-8859-1 (latin1)
         try {
             csvString = iconv.decode(req.file.buffer, 'utf8');
-            console.log('Conteúdo bruto do CSV (UTF-8, primeiros 500 caracteres):', csvString.substring(0, 500) + '...');
             jsonArray = await csvtojson({
                 delimiter: 'auto',
                 trim: true,
@@ -103,7 +189,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         } catch (utf8Error) {
             console.warn('Erro ao processar CSV com UTF-8, tentando ISO-8859-1:', utf8Error.message);
             csvString = iconv.decode(req.file.buffer, 'ISO-8859-1'); // Tenta ISO-8859-1
-            console.log('Conteúdo bruto do CSV (ISO-8859-1, primeiros 500 caracteres):', csvString.substring(0, 500) + '...');
             jsonArray = await csvtojson({
                 delimiter: 'auto',
                 trim: true,
@@ -114,53 +199,48 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             }).fromString(csvString);
         }
 
-        console.log('JSON Array gerado pelo csvtojson (primeiras 5 linhas):', jsonArray.slice(0, 5));
         if (jsonArray.length === 0) {
             console.warn('csvtojson gerou um array vazio ou com apenas cabeçalhos.');
             return res.status(400).json({ error: 'O arquivo CSV foi processado, mas nenhum dado válido foi encontrado.' });
         }
 
-        // Extrai os cabeçalhos originais do CSV para depuração
-        const originalCsvHeaders = Object.keys(jsonArray[0] || {});
-        console.log('Cabeçalhos originais detectados no CSV:', originalCsvHeaders);
-
-        // Mapeamento e normalização de colunas para os nomes esperados no frontend
         const processedData = jsonArray.map(row => {
             const newRow = {};
-            // Para cada cabeçalho que o frontend espera, tenta encontrar o valor correspondente no CSV
+            // Itera sobre os cabeçalhos que o frontend espera
             for (const frontendHeader of Object.values(columnMapping)) {
                 let foundValue = null;
-                let originalCsvKey = null;
 
-                // 1. Tenta encontrar pelo nome exato (já normalizado ou não)
+                // 1. Tenta encontrar pelo nome exato no CSV
                 if (row[frontendHeader] !== undefined) {
                     foundValue = row[frontendHeader];
-                    originalCsvKey = frontendHeader;
                 } else {
-                    // 2. Tenta encontrar pelo mapeamento direto do columnMapping
+                    // 2. Tenta encontrar usando o columnMapping para mapear nomes do CSV para nomes do frontend
                     for (const csvKey in columnMapping) {
                         if (columnMapping[csvKey] === frontendHeader && row[csvKey] !== undefined) {
                             foundValue = row[csvKey];
-                            originalCsvKey = csvKey;
                             break;
                         }
                     }
                 }
 
                 // 3. Se ainda não encontrou, tenta encontrar por normalização e inclusão (mais flexível)
-                if (foundValue === null) {
+                if (foundValue === null || foundValue === undefined) {
                     const normalizedFrontendHeader = normalizeKeyForComparison(frontendHeader);
                     for (const csvKey in row) {
-                        if (normalizeKeyForComparison(csvKey).includes(normalizedFrontendHeader) ||
-                            normalizedFrontendHeader.includes(normalizeKeyForComparison(csvKey))) {
+                        const normalizedCsvKey = normalizeKeyForComparison(csvKey);
+                        if (normalizedCsvKey === normalizedFrontendHeader) { // Match exato normalizado
                             foundValue = row[csvKey];
-                            originalCsvKey = csvKey;
+                            break;
+                        }
+                        // Fallback para inclusão se o match exato normalizado falhar
+                        if (normalizedCsvKey.includes(normalizedFrontendHeader) && normalizedFrontendHeader.length > 2) {
+                            foundValue = row[csvKey];
                             break;
                         }
                     }
                 }
 
-                // Limpeza específica para CNPJ / CPF
+                // Limpeza específica para CNPJ / CPF no backend
                 if (frontendHeader === 'CNPJ / CPF' && typeof foundValue === 'string') {
                     foundValue = foundValue.replace(/^="|"$/g, ''); // Remove =" no início e " no final
                 }
@@ -170,14 +250,12 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             return newRow;
         });
 
-        console.log('Dados processados (primeiras 5 linhas):', processedData.slice(0, 5));
-        console.log('Total de linhas nos dados processados:', processedData.length);
-
-        res.json(processedData);
+        console.log(`Total de linhas nos dados processados: ${processedData.length}`);
+        return res.json(processedData);
 
     } catch (error) {
-        console.error('Erro ao processar o arquivo CSV:', error);
-        res.status(500).json({ error: 'Erro interno ao processar o arquivo CSV.', details: error.message });
+        console.error('Erro no processamento do CSV:', error);
+        return res.status(500).json({ error: 'Erro interno ao processar o arquivo CSV.', details: error.message });
     }
 });
 
