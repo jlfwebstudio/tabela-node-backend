@@ -30,8 +30,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   const bufferStream = new stream.PassThrough();
   bufferStream.end(req.file.buffer);
 
-  // CORREÇÃO DE CODIFICAÇÃO: Tentar 'latin1' se 'cp1252' ainda não resolveu os caracteres bugados.
-  // Se 'latin1' também não funcionar, o problema pode ser no arquivo CSV em si ou outra codificação.
+  // CORREÇÃO DE CODIFICAÇÃO: Usando 'latin1' para decodificação.
+  // Se ainda houver problemas com caracteres bugados, podemos tentar 'cp1252'.
   const decodedStream = bufferStream.pipe(iconv.decodeStream('latin1')).pipe(iconv.encodeStream('utf8'));
 
   decodedStream
@@ -42,50 +42,51 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         // e padronizar nomes para o frontend esperar.
         let cleanedHeader = header.trim();
 
-        // Correções comuns de caracteres bugados e padronização
-        // Estes nomes devem corresponder EXATAMENTE aos nomes esperados no frontend (App.js tableHeaders)
-        if (cleanedHeader.includes('CHAMADO')) cleanedHeader = 'Chamado';
-        else if (cleanedHeader.includes('NUMERO REFERENCIA')) cleanedHeader = 'Numero Referencia';
-        else if (cleanedHeader.includes('CONTRATANTE')) cleanedHeader = 'Contratante';
-        // CORREÇÃO AQUI: Mapeamento mais robusto para 'Serviço' e 'Técnico'
-        else if (cleanedHeader.includes('SERVICO') || cleanedHeader.includes('SERVIÇO') || cleanedHeader.includes('SERVI?O')) cleanedHeader = 'Serviço';
-        else if (cleanedHeader.includes('STATUS')) cleanedHeader = 'Status';
-        else if (cleanedHeader.includes('DATA LIMITE')) cleanedHeader = 'Data Limite';
-        else if (cleanedHeader.includes('CLIENTE')) cleanedHeader = 'Cliente';
-        // CORREÇÃO AQUI: Mapeamento mais robusto para 'CNPJ / CPF'
-        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('CNPJ-CPF')) cleanedHeader = 'CNPJ / CPF';
-        else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
-        // CORREÇÃO AQUI: Mapeamento mais robusto para 'Técnico'
-        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('TECNICO')) cleanedHeader = 'Técnico';
-        else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
-        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO')) cleanedHeader = 'Justificativa do Abono';
-        // Adicione mais mapeamentos se houver outros cabeçalhos com problemas de acentuação ou grafia
+        // Normaliza para remover acentos e capitalizar para comparação robusta
+        const normalizedForComparison = cleanedHeader.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
+        // Estes nomes devem corresponder EXATAMENTE aos nomes esperados no frontend (App.js tableHeaders)
+        if (normalizedForComparison.includes('CHAMADO')) return 'Chamado';
+        else if (normalizedForComparison.includes('NUMERO REFERENCIA')) return 'Numero Referencia';
+        else if (normalizedForComparison.includes('CONTRATANTE')) return 'Contratante';
+        else if (normalizedForComparison.includes('SERVICO')) return 'Serviço'; // Corrigido para 'Serviço'
+        else if (normalizedForComparison.includes('STATUS')) return 'Status';
+        else if (normalizedForComparison.includes('DATA LIMITE')) return 'Data Limite';
+        else if (normalizedForComparison.includes('CLIENTE')) return 'Cliente';
+        else if (normalizedForComparison.includes('CNPJ / CPF') || normalizedForComparison.includes('CNPJCPF')) return 'CNPJ / CPF'; // Corrigido para 'CNPJ / CPF'
+        else if (normalizedForComparison.includes('CIDADE')) return 'Cidade';
+        else if (normalizedForComparison.includes('TECNICO')) return 'Técnico'; // Corrigido para 'Técnico'
+        else if (normalizedForComparison.includes('PRESTADOR')) return 'Prestador';
+        else if (normalizedForComparison.includes('JUSTIFICATIVA DO ABONO')) return 'Justificativa do Abono';
+
+        // Se não houver mapeamento específico, retorna o cabeçalho limpo original
         return cleanedHeader;
+      },
+      mapValues: ({ header, value }) => {
+        // Limpeza de valores específicos
+        if (header === 'CNPJ / CPF' && typeof value === 'string') {
+          // Remove o '=' inicial se presente, e aspas duplas
+          return value.replace(/^=/, '').replace(/"/g, '').trim();
+        }
+        return value;
       }
     }))
-    .on('data', (data) => {
-      const cleanedData = {};
-      for (const key in data) {
-        let value = data[key];
-        if (typeof value === 'string') {
-          value = value.trim();
-          // Remove "="" e aspas de CNPJ/CPF se ainda vierem do CSV
-          if (key === 'CNPJ / CPF' && value.startsWith('="') && value.endsWith('"')) {
-            value = value.substring(2, value.length - 1);
-          }
-        }
-        cleanedData[key] = value;
-      }
-      results.push(cleanedData);
-    })
+    .on('data', (data) => results.push(data))
     .on('end', () => {
+      console.log('CSV processado. Número de linhas:', results.length);
+      if (results.length === 0) {
+        return res.status(400).json({ error: 'Nenhum dado válido encontrado no CSV. Verifique o formato e o separador.' });
+      }
       res.json(results);
     })
     .on('error', (error) => {
       console.error('Erro ao processar CSV:', error);
-      res.status(500).json({ error: 'Erro ao processar o arquivo CSV.' });
+      res.status(500).json({ error: 'Erro ao processar o arquivo CSV. Verifique o formato.' });
     });
+});
+
+app.get('/', (req, res) => {
+  res.send('Backend da Tabela React está funcionando!');
 });
 
 app.listen(port, () => {
