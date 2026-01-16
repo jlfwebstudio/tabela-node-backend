@@ -33,123 +33,33 @@ const storage = multer.memoryStorage(); // Armazena o arquivo na memória
 const upload = multer({ storage: storage });
 
 // Mapeamento de nomes de colunas do CSV para os nomes esperados no frontend
-// Adicionado mapeamentos mais robustos para lidar com caracteres especiais e variantes
+// Prioriza os nomes exatos do frontend, mas também inclui variantes do CSV
 const columnMapping = {
     'Chamado': 'Chamado',
     'Numero Referencia': 'Numero Referencia',
     'Contratante': 'Contratante',
-    'Serviço': 'Serviço',
+    'Serviço': 'Serviço', // Nome esperado no frontend
     'Status': 'Status',
     'Data Limite': 'Data Limite',
     'Cliente': 'Cliente',
     'CNPJ / CPF': 'CNPJ / CPF',
     'Cidade': 'Cidade',
-    'Técnico': 'Técnico',
+    'Técnico': 'Técnico', // Nome esperado no frontend
     'Prestador': 'Prestador',
     'Justificativa do Abono': 'Justificativa do Abono',
-    // Mapeamentos adicionais para flexibilidade e correção de caracteres
+    // Mapeamentos adicionais para flexibilidade, incluindo os nomes com '�'
     'Grupo Serviço': 'Serviço',
-    'Grupo Servico': 'Serviço', // Sem acento
-    'Servico': 'Serviço', // Sem acento
+    'Grupo Servico': 'Serviço',
+    'Servico': 'Serviço',
+    'Servi�o': 'Serviço', // Mapeamento direto para o nome com '�'
     'Técnico Responsável': 'Técnico',
-    'Tecnico Responsavel': 'Técnico', // Sem acento
+    'Tecnico Responsavel': 'Técnico',
     'Nome Técnico': 'Técnico',
-    'Nome Tecnico': 'Técnico', // Sem acento
-    'Tecnico': 'Técnico', // Sem acento
-    'Prestador Responsável': 'Prestador',
-    'Prestador Responsavel': 'Prestador', // Sem acento
+    'Nome Tecnico': 'Técnico',
+    'Tecnico': 'Técnico',
+    'T�cnico': 'Técnico', // Mapeamento direto para o nome com '�'
     'Status Contratante': 'Status',
-    'Nome Cliente': 'Cliente', // Garante que 'Nome Cliente' seja mapeado para 'Cliente'
-    'Cod. Cliente': 'Cod. Cliente', // Manter para possível uso futuro
-    'Data Abertura': 'Data Abertura',
-    'Data Atendimento': 'Data Atendimento',
-    'Data Reg. Atendimento': 'Data Reg. Atendimento',
-    'Data Check-In': 'Data Check-In',
-    'Serial Instalado': 'Serial Instalado',
-    'Tipo Equipamento Instalado': 'Tipo Equipamento Instalado',
-    'Modelo Instalado': 'Modelo Instalado',
-    'Serial Retirado': 'Serial Retirado',
-    'Tipo Equipamento Retirado': 'Tipo Equipamento Retirado',
-    'Modelo Retirado': 'Modelo Retirado',
-    'Endereço': 'Endereço',
-    'Bairro': 'Bairro',
-    'Estado': 'Estado',
-    'CEP': 'CEP',
-    'ID Terminal': 'ID Terminal',
-    'Observações Atendimento': 'Observações Atendimento',
-    'Observações': 'Observações',
-    'Descrição Motivo': 'Descrição Motivo',
-    'Tipo Documento': 'Tipo Documento',
-    'Baixa Tecnica': 'Baixa Tecnica',
-    'Num Protocolo Técnico': 'Num Protocolo Técnico',
-    'Dt Ger. do Prot. Técnico': 'Dt Ger. do Prot. Técnico',
-    'Operadora': 'Operadora',
-    '1a Op Indicada por GTR': '1a Op Indicada por GTR',
-    '2a Op Indicada por GTR': '2a Op Indicada por GTR',
-    'Tecnologia Contratante': 'Tecnologia Contratante',
-    'Fotos': 'Fotos',
-    'Visitas': 'Visitas',
-    'Remarks': 'Remarks',
-    'Latitude Abertura': 'Latitude Abertura',
-    'Longitude Abertura': 'Longitude Abertura',
-    'Latitude Atendimento': 'Latitude Atendimento',
-    'Longitude Atendimento': 'Longitude Atendimento',
-    'Distância Abertura/Fechamento': 'Distância Abertura/Fechamento',
-    'Divergência de Chip Instalado': 'Divergência de Chip Instalado',
-    'Status do Abono': 'Status do Abono',
-    'Previsão': 'Previsão',
-    'Observação do Abono': 'Observação do Abono',
-    'Abonado Paytec': 'Abonado Paytec',
-    'Abonado Contratante': 'Abonado Contratante',
-    'Super Digital': 'Super Digital',
-    'Super Cartão': 'Super Cartão',
-    'Região': 'Região',
-    'Ramo': 'Ramo',
-    'Data Pré-Baixa': 'Data Pré-Baixa',
-    'Tipo de Faturamento': 'Tipo de Faturamento',
-    'Distancia Capital': 'Distancia Capital',
-    'Centro Trabalho': 'Centro Trabalho',
-    'Data Modificação': 'Data Modificação',
-    'CPF Técnico': 'CPF Técnico',
-    'Telefone 1': 'Telefone 1',
-    'Telefone 2': 'Telefone 2',
-    'Telefone 3': 'Telefone 3',
-    'Telefone 4': 'Telefone 4',
-    'Telefone 5': 'Telefone 5',
-    'Qtd. KIT': 'Qtd. KIT',
-    'Endereço OS - Receita': 'Endereço OS - Receita',
-    'Baixa PDA': 'Baixa PDA',
-    'Cabo Retirado': 'Cabo Retirado',
-    'Bateria Retirada': 'Bateria Retirada',
-    'Base Retirada': 'Base Retirada',
-    'Fonte Retirada': 'Fonte Retirada',
-    'Chip Retirado': 'Chip Retirado',
-    'Cabo Instalado': 'Cabo Instalado',
-    'Bateria Instalada': 'Bateria Instalada',
-    'Base Instalada': 'Base Instalada',
-    'Fonte Instalada': 'Fonte Instalada',
-    'Chip Instalado': 'Chip Instalado',
-    'FLAG_INSTALL_PELI': 'FLAG_INSTALL_PELI',
-    'Tipo Atendimento': 'Tipo Atendimento',
-    'Prestador Responsável': 'Prestador Responsável',
-    'Distância EC': 'Distância EC',
-    'Permissão Atender Fora do Perimetro': 'Permissão Atender Fora do Perimetro',
-    'Versão Aplicativo': 'Versão Aplicativo',
-    'Melhor Equipamento': 'Melhor Equipamento',
-    'Hora Inicio Sabado': 'Hora Inicio Sabado',
-    'Hora Termino Sabado': 'Hora Termino Sabado',
-    'Protocolo': 'Protocolo',
-    'Qtd. Protocolo': 'Qtd. Protocolo',
-    'Ponto Referência': 'Ponto Referência',
-    'Workday': 'Workday',
-    'E-Mail': 'E-Mail',
-    'Data Agendamento': 'Data Agendamento',
-    'Motivo Retenção': 'Motivo Retenção',
-    'Canal Credenciador EC': 'Canal Credenciador EC',
-    'Canal de Entrada': 'Canal de Entrada',
-    'Complemento': 'Complemento',
-    'Data Retorno WhatsApp': 'Data Retorno WhatsApp',
-    'Grau Parentesco': 'Grau Parentesco',
+    'Nome Cliente': 'Cliente',
 };
 
 // Função para normalizar chaves de coluna para comparação (remove acentos, caracteres especiais, espaços extras, e converte para maiúsculas)
@@ -210,7 +120,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             for (const frontendHeader of Object.values(columnMapping)) {
                 let foundValue = null;
 
-                // 1. Tenta encontrar pelo nome exato no CSV
+                // 1. Tenta encontrar pelo nome exato no CSV (incluindo os com '�')
                 if (row[frontendHeader] !== undefined) {
                     foundValue = row[frontendHeader];
                 } else {
