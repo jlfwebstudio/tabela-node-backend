@@ -4,12 +4,11 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const cors = require('cors');
 const stream = require('stream');
-const iconv = require('iconv-lite'); // Importa a biblioteca iconv-lite
+const iconv = require('iconv-lite');
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Configuração do CORS
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
   origin: frontendUrl,
@@ -17,7 +16,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Configuração do Multer para armazenamento em memória
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -30,36 +28,28 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   const bufferStream = new stream.PassThrough();
   bufferStream.end(req.file.buffer);
 
-  // CORREÇÃO AQUI: Usar iconv-lite para decodificar o buffer para UTF-8, assumindo que a origem é latin1
-  // Se os caracteres ainda estiverem bugados, tente 'cp1252' em vez de 'latin1'.
-  const decodedStream = bufferStream.pipe(iconv.decodeStream('latin1')).pipe(iconv.encodeStream('utf8'));
+  // TENTATIVA DE CORREÇÃO DE CODIFICAÇÃO:
+  // Tente 'cp1252' se 'latin1' ainda causar caracteres bugados.
+  const decodedStream = bufferStream.pipe(iconv.decodeStream('cp1252')).pipe(iconv.encodeStream('utf8'));
 
   decodedStream
     .pipe(csv({
-      separator: [';', ','], // Tenta ';' primeiro, depois ','
+      separator: [';', ','],
       mapHeaders: ({ header }) => {
-        // Normaliza os cabeçalhos para remover acentos e espaços extras, e depois mapeia
+        // NOVO MAPEAMENTO: Normaliza o cabeçalho do CSV para uma versão sem acentos e em maiúsculas.
+        // O frontend usará esses nomes normalizados para referenciar as colunas.
         const normalizedHeader = header
           .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-          .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um único
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, ' ')
           .trim()
-          .toUpperCase(); // Converte para maiúsculas para comparação consistente
+          .toUpperCase();
 
-        // Mapeamento de cabeçalhos (usando normalizedHeader)
-        if (normalizedHeader.includes('CHAMADO')) return 'Chamado';
-        if (normalizedHeader.includes('NUMERO REFERENCIA')) return 'Numero Referencia';
-        if (normalizedHeader.includes('CONTRATANTE')) return 'Contratante';
-        if (normalizedHeader.includes('SERVICO')) return 'Serviço'; // Mapeia para "Serviço" com acento
-        if (normalizedHeader.includes('STATUS')) return 'Status';
-        if (normalizedHeader.includes('DATA LIMITE')) return 'Data Limite';
-        if (normalizedHeader.includes('CLIENTE')) return 'Cliente';
-        if (normalizedHeader.includes('CNPJ / CPF')) return 'CNPJ / CPF';
-        if (normalizedHeader.includes('CIDADE')) return 'Cidade';
-        if (normalizedHeader.includes('TECNICO')) return 'Técnico'; // Mapeia para "Técnico" com acento
-        if (normalizedHeader.includes('PRESTADOR')) return 'Prestador';
-        if (normalizedHeader.includes('JUSTIFICATIVA DO ABONO')) return 'Justificativa do Abono';
-        return header; // Retorna o cabeçalho original se não houver mapeamento
+        // Retorna o cabeçalho normalizado. O frontend precisará usar esses nomes.
+        // Ex: "NUMERO REFERENCIA" -> "NUMERO REFERENCIA"
+        // Ex: "SERVICO" -> "SERVICO"
+        // Ex: "TECNICO" -> "TECNICO"
+        return normalizedHeader;
       }
     }))
     .on('data', (data) => {
@@ -68,7 +58,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         let value = data[key];
         if (typeof value === 'string') {
           value = value.trim();
-          // Remove o sinal de igual e aspas duplas de CNPJ/CPF
           if (key === 'CNPJ / CPF' && value.startsWith('="') && value.endsWith('"')) {
             value = value.substring(2, value.length - 1);
           }
