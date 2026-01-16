@@ -1,3 +1,4 @@
+// backend/server.js
 const express = require('express');
 const multer = require('multer');
 const csvtojson = require('csvtojson');
@@ -19,7 +20,7 @@ app.use(cors({
         if (!origin) return callback(null, true);
         // Verifica se a origem da requisição está na lista de origens permitidas
         if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+            const msg = `The CORS policy for this site does not not allow access from the specified Origin: ${origin}`;
             return callback(new Error(msg), false);
         }
         return callback(null, true);
@@ -46,10 +47,12 @@ const columnMapping = {
     'Técnico': 'Técnico',
     'Prestador': 'Prestador',
     'Justificativa do Abono': 'Justificativa do Abono',
+    // 'Origem': 'Origem', // REMOVIDA A COLUNA ORIGEM DO MAPPING
     // Adicionando mapeamentos para casos onde o nome do CSV pode ser diferente do que o frontend espera
     'Grupo Serviço': 'Serviço',
     'Prestador Responsável': 'Prestador',
     'Status Contratante': 'Status',
+    'Nome Técnico': 'Técnico', // Adicionado para flexibilidade
 };
 
 // Função para normalizar chaves de coluna para comparação (remove acentos, caracteres especiais, espaços extras, e converte para maiúsculas)
@@ -131,44 +134,41 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             }
 
             // Lógicas de prioridade para colunas específicas com base nos logs
-            // Ex: 'Contratante' do CSV é 'GETNET', mas 'Status Contratante' é 'OS Encaminhada...'
-            // Queremos 'Contratante' para a coluna 'Contratante' do frontend.
+            // Garante que os valores mais relevantes sejam usados
             if (row['Contratante'] !== undefined) {
                 newRow['Contratante'] = row['Contratante'];
             }
-            // Ex: 'Serviço' do CSV é 'MANUTENCAO', 'Grupo Serviço' é 'MANUTENCAO '
-            // Queremos o valor de 'Serviço' para a coluna 'Serviço' do frontend.
             if (row['Serviço'] !== undefined) {
                 newRow['Serviço'] = row['Serviço'];
             } else if (row['Grupo Serviço'] !== undefined) {
                 newRow['Serviço'] = row['Grupo Serviço'];
             }
-            // Ex: 'Técnico' do CSV é 'MARCELO OLIVEIRA DE MOURA'
             if (row['Técnico'] !== undefined) {
                 newRow['Técnico'] = row['Técnico'];
+            } else if (row['Nome Técnico'] !== undefined) { // Nova prioridade
+                newRow['Técnico'] = row['Nome Técnico'];
             }
-            // Ex: 'Prestador' do CSV é 'RS-SMART - SANTA CRUZ DO SUL', 'Prestador Responsável' é 'ADM - MOBYAN'
-            // Queremos o valor de 'Prestador' para a coluna 'Prestador' do frontend.
             if (row['Prestador'] !== undefined) {
                 newRow['Prestador'] = row['Prestador'];
             } else if (row['Prestador Responsável'] !== undefined) {
                 newRow['Prestador'] = row['Prestador Responsável'];
             }
-            // Ex: 'Nome Cliente' do CSV para 'Cliente' do frontend
             if (row['Nome Cliente'] !== undefined) {
                 newRow['Cliente'] = row['Nome Cliente'];
             }
-            // Ex: 'Status' do CSV para 'Status' do frontend
             if (row['Status'] !== undefined) {
                 newRow['Status'] = row['Status'];
+            } else if (row['Status Contratante'] !== undefined) {
+                newRow['Status'] = row['Status Contratante'];
             }
-            // Ex: 'Justificativa do Abono' do CSV para 'Justificativa do Abono' do frontend
             if (row['Justificativa do Abono'] !== undefined) {
                 newRow['Justificativa do Abono'] = row['Justificativa do Abono'];
             }
 
-            // Adicionar coluna 'Origem' com valor fixo 'MOBY'
-            newRow['Origem'] = 'MOBY';
+            // A coluna 'Origem' não é mais necessária no frontend, mas se o backend a gerar,
+            // ela não será mapeada para o frontend. Se você quiser removê-la completamente
+            // do processamento, pode remover a linha abaixo.
+            // newRow['Origem'] = 'MOBY'; // Removida conforme solicitação do frontend
 
             return newRow;
         });
