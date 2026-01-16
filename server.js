@@ -28,27 +28,21 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   const bufferStream = new stream.PassThrough();
   bufferStream.end(req.file.buffer);
 
-  // TENTATIVA DE CORREÇÃO DE CODIFICAÇÃO:
-  // Tente 'cp1252' se 'latin1' ainda causar caracteres bugados.
+  // Usando 'cp1252' para decodificação. Se ainda houver problemas, podemos tentar 'latin1' ou outras.
   const decodedStream = bufferStream.pipe(iconv.decodeStream('cp1252')).pipe(iconv.encodeStream('utf8'));
 
   decodedStream
     .pipe(csv({
       separator: [';', ','],
       mapHeaders: ({ header }) => {
-        // NOVO MAPEAMENTO: Normaliza o cabeçalho do CSV para uma versão sem acentos e em maiúsculas.
-        // O frontend usará esses nomes normalizados para referenciar as colunas.
+        // Normaliza o cabeçalho do CSV para uma versão sem acentos e em maiúsculas.
+        // O frontend precisará usar esses nomes normalizados para referenciar as colunas.
         const normalizedHeader = header
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
           .replace(/\s+/g, ' ')
           .trim()
           .toUpperCase();
-
-        // Retorna o cabeçalho normalizado. O frontend precisará usar esses nomes.
-        // Ex: "NUMERO REFERENCIA" -> "NUMERO REFERENCIA"
-        // Ex: "SERVICO" -> "SERVICO"
-        // Ex: "TECNICO" -> "TECNICO"
         return normalizedHeader;
       }
     }))
