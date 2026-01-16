@@ -31,39 +31,38 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   bufferStream.end(req.file.buffer);
 
   // CORREÇÃO AQUI: Usar iconv-lite para decodificar o buffer para UTF-8, assumindo que a origem é latin1
-  // Se o CSV for UTF-8 puro, esta linha pode ser removida.
-  // Se o CSV for de outra codificação (ex: cp1252), ajuste 'latin1' para 'cp1252'.
+  // Se os caracteres ainda estiverem bugados, tente 'cp1252' em vez de 'latin1'.
   const decodedStream = bufferStream.pipe(iconv.decodeStream('latin1')).pipe(iconv.encodeStream('utf8'));
 
   decodedStream
     .pipe(csv({
       separator: [';', ','], // Tenta ';' primeiro, depois ','
       mapHeaders: ({ header }) => {
-        // Normaliza os cabeçalhos para remover acentos e espaços extras
+        // Normaliza os cabeçalhos para remover acentos e espaços extras, e depois mapeia
         const normalizedHeader = header
           .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/\s+/g, ' ')
-          .trim();
+          .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+          .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um único
+          .trim()
+          .toUpperCase(); // Converte para maiúsculas para comparação consistente
 
-        // Mapeamento de cabeçalhos
+        // Mapeamento de cabeçalhos (usando normalizedHeader)
         if (normalizedHeader.includes('CHAMADO')) return 'Chamado';
         if (normalizedHeader.includes('NUMERO REFERENCIA')) return 'Numero Referencia';
         if (normalizedHeader.includes('CONTRATANTE')) return 'Contratante';
-        if (normalizedHeader.includes('SERVICO')) return 'Serviço';
+        if (normalizedHeader.includes('SERVICO')) return 'Serviço'; // Mapeia para "Serviço" com acento
         if (normalizedHeader.includes('STATUS')) return 'Status';
         if (normalizedHeader.includes('DATA LIMITE')) return 'Data Limite';
         if (normalizedHeader.includes('CLIENTE')) return 'Cliente';
         if (normalizedHeader.includes('CNPJ / CPF')) return 'CNPJ / CPF';
         if (normalizedHeader.includes('CIDADE')) return 'Cidade';
-        if (normalizedHeader.includes('TECNICO')) return 'Técnico';
+        if (normalizedHeader.includes('TECNICO')) return 'Técnico'; // Mapeia para "Técnico" com acento
         if (normalizedHeader.includes('PRESTADOR')) return 'Prestador';
         if (normalizedHeader.includes('JUSTIFICATIVA DO ABONO')) return 'Justificativa do Abono';
         return header; // Retorna o cabeçalho original se não houver mapeamento
       }
     }))
     .on('data', (data) => {
-      // Limpeza e formatação de dados
       const cleanedData = {};
       for (const key in data) {
         let value = data[key];
