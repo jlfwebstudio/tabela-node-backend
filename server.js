@@ -21,6 +21,22 @@ app.use(cors({
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// Definir os cabeçalhos esperados pelo frontend para garantir que todas as chaves existam
+const expectedFrontendHeaders = [
+  'Chamado',
+  'Numero Referencia',
+  'Contratante',
+  'Serviço',
+  'Status',
+  'Data Limite',
+  'Cliente',
+  'CNPJ / CPF',
+  'Cidade',
+  'Técnico',
+  'Prestador',
+  'Justificativa do Abono',
+];
+
 app.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
@@ -38,24 +54,24 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     .pipe(csv({
       separator: [';', ','], // Tenta ambos os separadores
       mapHeaders: ({ header }) => {
-        // Mapeamento explícito para corrigir caracteres bugados nos cabeçalhos
-        // e padronizar nomes para o frontend esperar.
         let cleanedHeader = header.trim();
 
         // Normaliza para remover acentos e capitalizar para comparação robusta
         const normalizedForComparison = cleanedHeader.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
+        // Mapeamento explícito para corrigir caracteres bugados nos cabeçalhos
+        // e padronizar nomes para o frontend esperar.
         // Estes nomes devem corresponder EXATAMENTE aos nomes esperados no frontend (App.js tableHeaders)
         if (normalizedForComparison.includes('CHAMADO')) return 'Chamado';
         else if (normalizedForComparison.includes('NUMERO REFERENCIA')) return 'Numero Referencia';
         else if (normalizedForComparison.includes('CONTRATANTE')) return 'Contratante';
-        else if (normalizedForComparison.includes('SERVICO')) return 'Serviço'; // Corrigido para 'Serviço'
+        else if (normalizedForComparison.includes('SERVICO')) return 'Serviço';
         else if (normalizedForComparison.includes('STATUS')) return 'Status';
         else if (normalizedForComparison.includes('DATA LIMITE')) return 'Data Limite';
         else if (normalizedForComparison.includes('CLIENTE')) return 'Cliente';
-        else if (normalizedForComparison.includes('CNPJ / CPF') || normalizedForComparison.includes('CNPJCPF')) return 'CNPJ / CPF'; // Corrigido para 'CNPJ / CPF'
+        else if (normalizedForComparison.includes('CNPJ / CPF') || normalizedForComparison.includes('CNPJCPF')) return 'CNPJ / CPF';
         else if (normalizedForComparison.includes('CIDADE')) return 'Cidade';
-        else if (normalizedForComparison.includes('TECNICO')) return 'Técnico'; // Corrigido para 'Técnico'
+        else if (normalizedForComparison.includes('TECNICO')) return 'Técnico';
         else if (normalizedForComparison.includes('PRESTADOR')) return 'Prestador';
         else if (normalizedForComparison.includes('JUSTIFICATIVA DO ABONO')) return 'Justificativa do Abono';
 
@@ -64,14 +80,24 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       },
       mapValues: ({ header, value }) => {
         // Limpeza de valores específicos
-        if (header === 'CNPJ / CPF' && typeof value === 'string') {
+        let cleanedValue = (value === undefined || value === null) ? '' : String(value).trim(); // Garante que valores vazios sejam strings vazias
+
+        if (header === 'CNPJ / CPF') {
           // Remove o '=' inicial se presente, e aspas duplas
-          return value.replace(/^=/, '').replace(/"/g, '').trim();
+          cleanedValue = cleanedValue.replace(/^=/, '').replace(/"/g, '');
         }
-        return value;
+        return cleanedValue;
       }
     }))
-    .on('data', (data) => results.push(data))
+    .on('data', (data) => {
+      // CORREÇÃO AQUI: Garante que todas as chaves esperadas existam no objeto de dados,
+      // preenchendo com string vazia se a chave estiver faltando.
+      const completeData = {};
+    for (const header of expectedFrontendHeaders) {
+      completeData[header] = data[header] !== undefined ? data[header] : '';
+    }
+    results.push(completeData);
+    })
     .on('end', () => {
       console.log('CSV processado. Número de linhas:', results.length);
       if (results.length === 0) {
