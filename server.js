@@ -1,8 +1,10 @@
+// backend/server.js
 const express = require('express');
 const multer = require('multer');
 const csvtojson = require('csvtojson');
 const cors = require('cors');
 const path = require('path');
+const iconv = require('iconv-lite'); // Importa iconv-lite
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -33,6 +35,7 @@ const storage = multer.memoryStorage(); // Armazena o arquivo na memória
 const upload = multer({ storage: storage });
 
 // Mapeamento de nomes de colunas do CSV para os nomes esperados no frontend
+// Adicionado mapeamentos mais robustos para lidar com caracteres especiais e variantes
 const columnMapping = {
     'Chamado': 'Chamado',
     'Numero Referencia': 'Numero Referencia',
@@ -46,14 +49,20 @@ const columnMapping = {
     'Técnico': 'Técnico',
     'Prestador': 'Prestador',
     'Justificativa do Abono': 'Justificativa do Abono',
-    // Adicionando mapeamentos para casos onde o nome do CSV pode ser diferente do que o frontend espera
+    // Mapeamentos adicionais para flexibilidade e correção de caracteres
     'Grupo Serviço': 'Serviço',
+    'Grupo Servico': 'Serviço', // Sem acento
+    'Servico': 'Serviço', // Sem acento
+    'Técnico Responsável': 'Técnico',
+    'Tecnico Responsavel': 'Técnico', // Sem acento
+    'Nome Técnico': 'Técnico',
+    'Nome Tecnico': 'Técnico', // Sem acento
+    'Tecnico': 'Técnico', // Sem acento
     'Prestador Responsável': 'Prestador',
+    'Prestador Responsavel': 'Prestador', // Sem acento
     'Status Contratante': 'Status',
-    'Nome Técnico': 'Técnico', // Adicionado para flexibilidade
-    'Técnico Responsável': 'Técnico', // Adicionado para flexibilidade
-    'Serviço': 'Serviço', // Adicionado para flexibilidade (Serviço com 'c' ou 'ç')
-    'Tecnico': 'Técnico', // Adicionado para flexibilidade (Tecnico sem acento)
+    'CPF Técnico': 'CPF Técnico', // Manter para possível uso futuro, mesmo que não na tabela principal
+    'CPF Tecnico': 'CPF Técnico', // Sem acento
 };
 
 // Função para normalizar chaves de coluna para comparação (remove acentos, caracteres especiais, espaços extras, e converte para maiúsculas)
@@ -70,30 +79,31 @@ const normalizeKeyForComparison = (key) => {
 // Rota para upload de arquivo CSV
 app.post('/upload', upload.single('file'), async (req, res) => {
     if (!req.file) {
-        console.error('Erro: Nenhum arquivo enviado.');
         return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
     }
 
     try {
         let jsonArray = [];
-        let csvString = req.file.buffer.toString('utf8'); // Tenta UTF-8 primeiro
-        console.log('--- INÍCIO DO PROCESSAMENTO DO CSV ---');
-        console.log('Conteúdo bruto do CSV (UTF-8, primeiros 500 caracteres):', csvString.substring(0, 500) + '...');
+        let csvString;
 
+        console.log('--- INÍCIO DO PROCESSAMENTO DO CSV ---');
+
+        // Tenta decodificar com UTF-8, depois com ISO-8859-1 (latin1)
         try {
+            csvString = iconv.decode(req.file.buffer, 'utf8');
+            console.log('Conteúdo bruto do CSV (UTF-8, primeiros 500 caracteres):', csvString.substring(0, 500) + '...');
             jsonArray = await csvtojson({
-                delimiter: 'auto', // Detecta automaticamente o delimitador (vírgula, ponto e vírgula, etc.)
-                trim: true, // Remove espaços em branco do início/fim dos valores
-                checkType: false, // Não tenta converter tipos (mantém como string)
-                noheader: false, // Assume que a primeira linha é o cabeçalho
-                ignoreEmpty: true, // Ignora linhas vazias
-                flatKeys: true, // Mantém as chaves simples, sem aninhamento
+                delimiter: 'auto',
+                trim: true,
+                checkType: false,
+                noheader: false,
+                ignoreEmpty: true,
+                flatKeys: true,
             }).fromString(csvString);
         } catch (utf8Error) {
-            console.warn('Erro ao processar CSV com UTF-8, tentando latin1:', utf8Error.message);
-            // Se UTF-8 falhar, tenta com latin1
-            csvString = req.file.buffer.toString('latin1');
-            console.log('Conteúdo bruto do CSV (latin1, primeiros 500 caracteres):', csvString.substring(0, 500) + '...');
+            console.warn('Erro ao processar CSV com UTF-8, tentando ISO-8859-1:', utf8Error.message);
+            csvString = iconv.decode(req.file.buffer, 'ISO-8859-1'); // Tenta ISO-8859-1
+            console.log('Conteúdo bruto do CSV (ISO-8859-1, primeiros 500 caracteres):', csvString.substring(0, 500) + '...');
             jsonArray = await csvtojson({
                 delimiter: 'auto',
                 trim: true,
@@ -104,13 +114,9 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             }).fromString(csvString);
         }
 
-        // --- NOVO LOG PARA DEPURAR jsonArray ---
         console.log('JSON Array gerado pelo csvtojson (primeiras 5 linhas):', jsonArray.slice(0, 5));
-        console.log('Total de linhas no jsonArray:', jsonArray.length);
-        // --- FIM NOVO LOG ---
-
         if (jsonArray.length === 0) {
-            console.warn('csvtojson gerou um array vazio ou com apenas cabeçalhos. Verifique o formato do CSV ou se há dados válidos.');
+            console.warn('csvtojson gerou um array vazio ou com apenas cabeçalhos.');
             return res.status(400).json({ error: 'O arquivo CSV foi processado, mas nenhum dado válido foi encontrado.' });
         }
 
@@ -124,61 +130,61 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             // Para cada cabeçalho que o frontend espera, tenta encontrar o valor correspondente no CSV
             for (const frontendHeader of Object.values(columnMapping)) {
                 let foundValue = null;
-                // Prioriza o mapeamento direto pelo nome exato
+                let originalCsvKey = null;
+
+                // 1. Tenta encontrar pelo nome exato (já normalizado ou não)
                 if (row[frontendHeader] !== undefined) {
                     foundValue = row[frontendHeader];
+                    originalCsvKey = frontendHeader;
                 } else {
-                    // Tenta encontrar pelo nome exato com acento/sem acento, etc.
-                    const possibleCsvKeys = Object.keys(row);
-                    for (const csvKey of possibleCsvKeys) {
-                        if (normalizeKeyForComparison(csvKey) === normalizeKeyForComparison(frontendHeader)) {
+                    // 2. Tenta encontrar pelo mapeamento direto do columnMapping
+                    for (const csvKey in columnMapping) {
+                        if (columnMapping[csvKey] === frontendHeader && row[csvKey] !== undefined) {
                             foundValue = row[csvKey];
+                            originalCsvKey = csvKey;
                             break;
                         }
                     }
                 }
-                newRow[frontendHeader] = foundValue !== null ? foundValue : '';
+
+                // 3. Se ainda não encontrou, tenta encontrar por normalização e inclusão (mais flexível)
+                if (foundValue === null) {
+                    const normalizedFrontendHeader = normalizeKeyForComparison(frontendHeader);
+                    for (const csvKey in row) {
+                        if (normalizeKeyForComparison(csvKey).includes(normalizedFrontendHeader) ||
+                            normalizedFrontendHeader.includes(normalizeKeyForComparison(csvKey))) {
+                            foundValue = row[csvKey];
+                            originalCsvKey = csvKey;
+                            break;
+                        }
+                    }
+                }
+
+                // Limpeza específica para CNPJ / CPF
+                if (frontendHeader === 'CNPJ / CPF' && typeof foundValue === 'string') {
+                    foundValue = foundValue.replace(/^="|"$/g, ''); // Remove =" no início e " no final
+                }
+
+                newRow[frontendHeader] = foundValue !== null ? foundValue : ''; // Garante que a chave exista, mesmo que vazia
             }
-
-            // Lógicas de prioridade para colunas específicas com base nos logs e necessidades
-            // Garante que os valores mais relevantes sejam usados
-            // Exemplo: 'Serviço' pode vir como 'Serviço' ou 'Grupo Serviço'
-            newRow['Serviço'] = row['Serviço'] || row['Grupo Serviço'] || '';
-            newRow['Técnico'] = row['Técnico'] || row['Nome Técnico'] || row['Técnico Responsável'] || row['Tecnico'] || ''; // Adicionado 'Tecnico' sem acento
-            newRow['Prestador'] = row['Prestador'] || row['Prestador Responsável'] || '';
-            newRow['Status'] = row['Status'] || row['Status Contratante'] || '';
-            newRow['Cliente'] = row['Cliente'] || row['Nome Cliente'] || '';
-            newRow['Justificativa do Abono'] = row['Justificativa do Abono'] || '';
-            newRow['Chamado'] = row['Chamado'] || '';
-            newRow['Numero Referencia'] = row['Numero Referencia'] || '';
-            newRow['Contratante'] = row['Contratante'] || '';
-            newRow['Data Limite'] = row['Data Limite'] || '';
-            newRow['CNPJ / CPF'] = row['CNPJ / CPF'] || '';
-            newRow['Cidade'] = row['Cidade'] || '';
-
-
             return newRow;
         });
 
-        // --- NOVO LOG PARA DEPURAR processedData ---
         console.log('Dados processados (primeiras 5 linhas):', processedData.slice(0, 5));
         console.log('Total de linhas nos dados processados:', processedData.length);
-        // --- FIM NOVO LOG ---
 
         res.json(processedData);
 
     } catch (error) {
-        console.error('Erro interno do servidor ao processar o arquivo CSV:', error);
-        res.status(500).json({ error: 'Erro interno do servidor ao processar o arquivo CSV.' });
+        console.error('Erro ao processar o arquivo CSV:', error);
+        res.status(500).json({ error: 'Erro interno ao processar o arquivo CSV.', details: error.message });
     }
 });
 
-// Rota para verificar o status do servidor
-app.get('/status', (req, res) => {
-    res.status(200).json({ message: 'Backend is running!' });
+app.get('/', (req, res) => {
+    res.send('Backend da Tabela está funcionando!');
 });
 
 app.listen(port, () => {
-    console.log(`Backend server listening at http://localhost:${port}`);
-    console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
+    console.log(`Servidor backend rodando na porta ${port}`);
 });
