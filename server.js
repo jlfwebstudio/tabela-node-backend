@@ -43,13 +43,20 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         let cleanedHeader = header.trim();
 
         // Correções comuns de caracteres bugados e padronização
-        cleanedHeader = cleanedHeader
-          .replace(/ServiÁo/g, 'Serviço')
-          .replace(/TÈcnico/g, 'Técnico')
-          .replace(/N?mero Referencia/g, 'Numero Referencia') // Para N�mero Referencia
-          .replace(/Data Limite/g, 'Data Limite') // Para Data Limite
-          .replace(/CNPJ \/ CPF/g, 'CNPJ / CPF') // Para CNPJ / CPF
-          .replace(/Justificativa do Abono/g, 'Justificativa do Abono'); // Para Justificativa do Abono
+        // Estes nomes devem corresponder EXATAMENTE aos nomes esperados no frontend (App.js tableHeaders)
+        if (cleanedHeader.includes('CHAMADO')) cleanedHeader = 'Chamado';
+        else if (cleanedHeader.includes('NUMERO REFERENCIA')) cleanedHeader = 'Numero Referencia';
+        else if (cleanedHeader.includes('CONTRATANTE')) cleanedHeader = 'Contratante';
+        else if (cleanedHeader.includes('SERVICO') || cleanedHeader.includes('SERVIÇO')) cleanedHeader = 'Serviço';
+        else if (cleanedHeader.includes('STATUS')) cleanedHeader = 'Status';
+        else if (cleanedHeader.includes('DATA LIMITE')) cleanedHeader = 'Data Limite';
+        else if (cleanedHeader.includes('CLIENTE')) cleanedHeader = 'Cliente';
+        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF')) cleanedHeader = 'CNPJ / CPF';
+        else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
+        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO')) cleanedHeader = 'Técnico';
+        else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
+        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO')) cleanedHeader = 'Justificativa do Abono';
+        // Adicione mais mapeamentos se houver outros cabeçalhos com problemas de acentuação ou grafia
 
         return cleanedHeader;
       }
