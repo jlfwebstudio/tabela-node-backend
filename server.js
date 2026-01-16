@@ -30,9 +30,9 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   const bufferStream = new stream.PassThrough();
   bufferStream.end(req.file.buffer);
 
-  // TENTATIVA DE CORREÇÃO DE CODIFICAÇÃO:
-  // Usando 'cp1252' para decodificação. Se ainda houver problemas, podemos tentar 'latin1'.
-  const decodedStream = bufferStream.pipe(iconv.decodeStream('cp1252')).pipe(iconv.encodeStream('utf8'));
+  // CORREÇÃO DE CODIFICAÇÃO: Tentar 'latin1' se 'cp1252' ainda não resolveu os caracteres bugados.
+  // Se 'latin1' também não funcionar, o problema pode ser no arquivo CSV em si ou outra codificação.
+  const decodedStream = bufferStream.pipe(iconv.decodeStream('latin1')).pipe(iconv.encodeStream('utf8'));
 
   decodedStream
     .pipe(csv({
@@ -47,13 +47,16 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         if (cleanedHeader.includes('CHAMADO')) cleanedHeader = 'Chamado';
         else if (cleanedHeader.includes('NUMERO REFERENCIA')) cleanedHeader = 'Numero Referencia';
         else if (cleanedHeader.includes('CONTRATANTE')) cleanedHeader = 'Contratante';
-        else if (cleanedHeader.includes('SERVICO') || cleanedHeader.includes('SERVIÇO')) cleanedHeader = 'Serviço';
+        // CORREÇÃO AQUI: Mapeamento mais robusto para 'Serviço' e 'Técnico'
+        else if (cleanedHeader.includes('SERVICO') || cleanedHeader.includes('SERVIÇO') || cleanedHeader.includes('SERVI?O')) cleanedHeader = 'Serviço';
         else if (cleanedHeader.includes('STATUS')) cleanedHeader = 'Status';
         else if (cleanedHeader.includes('DATA LIMITE')) cleanedHeader = 'Data Limite';
         else if (cleanedHeader.includes('CLIENTE')) cleanedHeader = 'Cliente';
-        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF')) cleanedHeader = 'CNPJ / CPF';
+        // CORREÇÃO AQUI: Mapeamento mais robusto para 'CNPJ / CPF'
+        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('CNPJ-CPF')) cleanedHeader = 'CNPJ / CPF';
         else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
-        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO')) cleanedHeader = 'Técnico';
+        // CORREÇÃO AQUI: Mapeamento mais robusto para 'Técnico'
+        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('TECNICO')) cleanedHeader = 'Técnico';
         else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
         else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO')) cleanedHeader = 'Justificativa do Abono';
         // Adicione mais mapeamentos se houver outros cabeçalhos com problemas de acentuação ou grafia
