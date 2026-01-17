@@ -4,11 +4,13 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const cors = require('cors');
 const stream = require('stream');
-const iconv = require('iconv-lite');
+const iconv = require('iconv-lite'); // Para lidar com codificação de caracteres
 
 const app = express();
+// Usa a porta fornecida pelo ambiente (Render) ou 3001 como fallback para desenvolvimento local
 const PORT_TO_USE = process.env.PORT || 3001;
 
+// Configuração do CORS para permitir requisições do frontend Vercel
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
   origin: frontendUrl,
@@ -16,119 +18,102 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// Configuração do Multer para armazenar o arquivo CSV em memória
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// Define os cabeçalhos esperados pelo frontend, na ordem e com a grafia exata
+// Isso garante que o frontend sempre receba as chaves esperadas
 const expectedFrontendHeaders = [
-  'Chamado', 'Numero Referencia', 'Contratante', 'Serviço', 'Status',
-  'Data Limite', 'Cliente', 'CNPJ / CPF', 'Cidade', 'Técnico',
-  'Prestador', 'Justificativa do Abono',
+  'Chamado',
+  'Numero Referencia',
+  'Contratante',
+  'Serviço',
+  'Status',
+  'Data Limite',
+  'Cliente',
+  'CNPJ / CPF',
+  'Cidade',
+  'Técnico',
+  'Prestador',
+  'Justificativa do Abono',
 ];
 
-const normalizeHeader = (header) => {
-  if (typeof header !== 'string') return '';
-  return header
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]/g, '')
-    .toLowerCase();
-};
-
-const headerMapping = {
-  'chamado': 'Chamado', 'numeroreferencia': 'Numero Referencia', 'contratante': 'Contratante',
-  'servico': 'Serviço', 'status': 'Status', 'datalimite': 'Data Limite',
-  'cliente': 'Cliente', 'cnpjcpf': 'CNPJ / CPF', 'cidade': 'Cidade',
-  'tecnico': 'Técnico', 'prestador': 'Prestador', 'justificativadoabono': 'Justificativa do Abono',
-  'nºchamado': 'Chamado', 'nreferencia': 'Numero Referencia', 'data limite': 'Data Limite',
-  'cnpj/cpf': 'CNPJ / CPF', 'justificativa': 'Justificativa do Abono', 'justificativaabono': 'Justificativa do Abono',
-};
-
-app.post('/upload', upload.single('csvFile'), async (req, res) => {
+// Endpoint para upload de arquivo CSV
+app.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'Nenhum arquivo CSV foi enviado.' });
+    return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
 
-  try {
-    const buffer = req.file.buffer;
-    const decodedContent = iconv.decode(buffer, 'latin1');
+  const results = [];
+  const bufferStream = new stream.PassThrough();
+  bufferStream.end(req.file.buffer);
 
-    const results = [];
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(Buffer.from(decodedContent, 'utf8'));
+  // Decodifica o buffer do arquivo CSV usando 'latin1' (comum em CSVs brasileiros)
+  // e depois o codifica para 'utf8' para processamento consistente
+  const decodedStream = bufferStream.pipe(iconv.decodeStream('latin1')).pipe(iconv.encodeStream('utf8'));
 
-    let originalHeaders = []; // Para armazenar os cabeçalhos do CSV
+  decodedStream
+    .pipe(csv({
+      separator: ';', // Define explicitamente o ponto e vírgula como separador
+      mapHeaders: ({ header }) => {
+        let cleanedHeader = header.trim();
 
-    bufferStream
-      .pipe(csv({
-        separator: ';',
-        mapHeaders: ({ header }) => {
-          // Captura os cabeçalhos originais para uso posterior no mapeamento
-          originalHeaders.push(header);
-          return header; // Retorna o cabeçalho original para o csv-parser
+        // Mapeamento robusto para padronizar os nomes dos cabeçalhos do CSV
+        // para os nomes esperados pelo frontend, corrigindo variações e caracteres bugados.
+        if (cleanedHeader.includes('CHAMADO')) return 'Chamado';
+        else if (cleanedHeader.includes('NUMERO REFERENCIA') || cleanedHeader.includes('N?MERO REFERENCIA')) return 'Numero Referencia';
+        else if (cleanedHeader.includes('CONTRATANTE')) return 'Contratante';
+        else if (cleanedHeader.includes('SERVICO') || cleanedHeader.includes('SERVIÇO') || cleanedHeader.includes('SERVI?O')) return 'Serviço';
+        else if (cleanedHeader.includes('STATUS')) return 'Status';
+        else if (cleanedHeader.includes('DATA LIMITE')) return 'Data Limite';
+        else if (cleanedHeader.includes('CLIENTE') || cleanedHeader.includes('NOME CLIENTE') || cleanedHeader.includes('NOME_CLIENTE')) return 'Cliente';
+        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('C.N.P.J / C.P.F')) return 'CNPJ / CPF';
+        else if (cleanedHeader.includes('CIDADE')) return 'Cidade';
+        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('T?CNICO')) return 'Técnico';
+        else if (cleanedHeader.includes('PRESTADOR')) return 'Prestador';
+        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA ABONO')) return 'Justificativa do Abono';
+
+        // Se o cabeçalho não for mapeado explicitamente, ele será mantido como está.
+        // Isso é um fallback, mas o ideal é mapear todos os cabeçalhos relevantes.
+        return cleanedHeader;
+      }
+    }))
+    .on('data', (data) => {
+      const processedRow = {};
+      // Garante que cada linha tenha todas as chaves esperadas pelo frontend,
+      // preenchendo com string vazia se o valor original for nulo/indefinido.
+      expectedFrontendHeaders.forEach(header => {
+        let value = data[header] !== undefined && data[header] !== null ? String(data[header]).trim() : '';
+
+        // Limpeza específica para CNPJ / CPF: remove tudo que não for dígito
+        if (header === 'CNPJ / CPF' && value) {
+          value = value.replace(/[^\d]/g, '');
         }
-      }))
-      .on('data', (data) => {
-        const row = {};
-        expectedFrontendHeaders.forEach(expectedHeader => {
-          let foundValue = ''; // Inicializa com string vazia
-
-          // Tenta encontrar o valor usando o mapeamento e os cabeçalhos originais
-          for (const originalHeader of originalHeaders) {
-            const normalizedOriginalHeader = normalizeHeader(originalHeader);
-            if (headerMapping[normalizedOriginalHeader] === expectedHeader) {
-              foundValue = data[originalHeader];
-              break;
-            }
-          }
-
-          // Se não encontrou pelo mapeamento, tenta encontrar diretamente pelo nome esperado
-          if (foundValue === '' && data[expectedHeader] !== undefined) {
-            foundValue = data[expectedHeader];
-          }
-
-          // Se ainda não encontrou, tenta encontrar pelo nome normalizado
-          if (foundValue === '') {
-            const normalizedExpectedHeader = normalizeHeader(expectedHeader);
-            for (const originalHeader of originalHeaders) {
-              if (normalizeHeader(originalHeader) === normalizedExpectedHeader) {
-                foundValue = data[originalHeader];
-                break;
-              }
-            }
-          }
-
-          // Tratamento especial para CNPJ / CPF: remover o prefixo '=' e aspas
-          if (expectedHeader === 'CNPJ / CPF' && typeof foundValue === 'string') {
-            foundValue = foundValue.replace(/^="/, '').replace(/"$/, '');
-          }
-
-          row[expectedHeader] = foundValue !== undefined ? String(foundValue).trim() : ''; // Garante string e remove espaços
-        });
-        results.push(row);
-      })
-      .on('end', () => {
-        if (results.length === 0) {
-          return res.status(200).json([]);
-        }
-        res.json(results);
-      })
-      .on('error', (err) => {
-        console.error('Erro ao processar CSV stream:', err);
-        // CORREÇÃO: Sempre retorna JSON em caso de erro
-        res.status(500).json({ error: 'Erro ao processar o arquivo CSV.', details: err.message });
+        processedRow[header] = value;
       });
-
-  } catch (error) {
-    console.error('Erro no upload handler:', error);
-    // CORREÇÃO: Sempre retorna JSON em caso de erro
-    res.status(500).json({ error: 'Erro interno do servidor ao processar o upload.', details: error.message });
-  }
+      results.push(processedRow);
+    })
+    .on('end', () => {
+      // Retorna um array vazio se nenhum dado válido foi extraído, mas com status 200 OK
+      if (results.length === 0) {
+        console.warn('CSV processado, mas nenhum dado válido foi extraído. Verifique o formato do CSV e os separadores.');
+        return res.status(200).json([]);
+      }
+      res.json(results);
+    })
+    .on('error', (error) => {
+      console.error('Erro ao processar CSV:', error);
+      res.status(500).json({ error: 'Erro ao processar o arquivo CSV.', details: error.message });
+    });
 });
 
+// Endpoint de saúde para verificar se o backend está online
 app.get('/', (req, res) => {
-  res.send('Backend da Tabela de OSs está online!');
+  res.send('Backend da Tabela de OS está online!');
 });
 
+// Inicia o servidor na porta configurada
 app.listen(PORT_TO_USE, () => {
   console.log(`Servidor backend escutando na porta ${PORT_TO_USE}`);
   console.log(`CORS permitido para: ${frontendUrl}`);
