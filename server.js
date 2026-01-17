@@ -55,7 +55,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       mapHeaders: ({ header }) => {
         let cleanedHeader = header.trim();
 
-        // Mapeamento explícito para corrigir caracteres bugados e padronizar nomes
+        // Mapeamento explícito para corrigir caracteres bugados nos cabeçalhos
+        // e padronizar nomes para o frontend esperar.
         if (cleanedHeader.includes('CHAMADO')) cleanedHeader = 'Chamado';
         else if (cleanedHeader.includes('NUMERO REFERENCIA') || cleanedHeader.includes('N?MERO REFERENCIA')) cleanedHeader = 'Numero Referencia';
         else if (cleanedHeader.includes('CONTRATANTE')) cleanedHeader = 'Contratante';
@@ -64,26 +65,24 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         else if (cleanedHeader.includes('DATA LIMITE')) cleanedHeader = 'Data Limite';
         // CORREÇÃO AQUI: Mapeamento mais robusto para 'Cliente'
         else if (cleanedHeader.includes('CLIENTE') || cleanedHeader.includes('NOME CLIENTE') || cleanedHeader.includes('NOME_CLIENTE')) cleanedHeader = 'Cliente';
-        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('C.N.P.J / C.P.F')) cleanedHeader = 'CNPJ / CPF';
+        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('CNPJ-CPF')) cleanedHeader = 'CNPJ / CPF';
         else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
-        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('T?CNICO')) cleanedHeader = 'Técnico';
+        else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('TECNICO')) cleanedHeader = 'Técnico';
         else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
-        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA DO ABON')) cleanedHeader = 'Justificativa do Abono';
+        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA_DO_ABONO')) cleanedHeader = 'Justificativa do Abono';
 
         return cleanedHeader;
       }
     }))
     .on('data', (data) => {
       const cleanedData = {};
-      // Garante que todas as chaves esperadas existam, mesmo que vazias no CSV
+      // Garante que todas as chaves esperadas existam, mesmo que o valor seja vazio
       expectedFrontendHeaders.forEach(header => {
-        let value = data[header] || ''; // Usa string vazia se a chave não existir ou for null/undefined
-        if (typeof value === 'string') {
-          value = value.trim();
-          // Remove "="" e aspas de CNPJ/CPF se ainda vierem do CSV
-          if (header === 'CNPJ / CPF' && value.startsWith('="') && value.endsWith('"')) {
-            value = value.substring(2, value.length - 1);
-          }
+        let value = data[header] !== undefined ? data[header] : '';
+
+        // Limpeza específica para CNPJ / CPF
+        if (header === 'CNPJ / CPF' && typeof value === 'string') {
+          value = value.replace(/[^\d]/g, ''); // Remove tudo que não for dígito
         }
         cleanedData[header] = value;
       });
@@ -91,16 +90,20 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     })
     .on('end', () => {
       if (results.length === 0) {
-        console.warn('CSV processado, mas nenhum dado válido foi extraído. Verifique o formato do CSV.');
+        return res.status(200).json({ message: 'Nenhum dado válido encontrado no CSV.', data: [] });
       }
       res.json(results);
     })
     .on('error', (error) => {
       console.error('Erro ao processar CSV:', error);
-      res.status(500).json({ error: 'Erro ao processar o arquivo CSV.' });
+      res.status(500).json({ error: 'Erro ao processar o arquivo CSV.', details: error.message });
     });
 });
 
+app.get('/', (req, res) => {
+  res.send('Backend da Tabela de OS está funcionando!');
+});
+
 app.listen(port, () => {
-  console.log(`Backend server running on port ${port}`);
+  console.log(`Servidor backend rodando em http://localhost:${port}`);
 });
