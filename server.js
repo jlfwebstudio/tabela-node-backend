@@ -72,7 +72,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('T?CNICO')) cleanedHeader = 'Técnico';
         else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
         else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA DO ABONO')) cleanedHeader = 'Justificativa do Abono';
-        // Adicione mais mapeamentos se houver outros cabeçalhos com problemas de acentuação ou grafia
         // Se o cabeçalho não for mapeado explicitamente, ele será mantido como está.
         return cleanedHeader;
       }
@@ -89,19 +88,15 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             value = value.substring(2, value.length - 1);
           }
         }
-        cleanedData[header] = value;
+        cleanedData[header] = value; // Atribui usando o cabeçalho padronizado
       }
       results.push(cleanedData);
     })
     .on('end', () => {
-      // Garante que a resposta nunca seja um array vazio se houver um problema,
-      // mas retorna os resultados se houver dados.
-      if (results.length === 0) {
-        // Se o CSV estava vazio ou não pôde ser parseado, retorna uma estrutura vazia
-        // ou um erro mais específico, dependendo da necessidade.
-        // Por enquanto, vamos retornar um array vazio, mas com um status 200.
-        // O frontend deve lidar com um array vazio.
-        return res.json([]);
+      // Garante que a resposta nunca seja um array vazio se houver um problema no CSV
+      if (results.length === 0 && req.file.buffer.length > 0) {
+        console.warn('CSV processado, mas nenhum dado foi extraído. Verifique o formato do CSV e os separadores.');
+        // Pode-se retornar um erro mais específico aqui, ou apenas um array vazio para o frontend lidar.
       }
       res.json(results);
     })
