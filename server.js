@@ -47,19 +47,15 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   bufferStream.end(req.file.buffer);
 
   // CORREÇÃO DE CODIFICAÇÃO: Usando 'latin1' para decodificação.
-  // Se ainda houver problemas com caracteres bugados, podemos tentar 'cp1252'.
   const decodedStream = bufferStream.pipe(iconv.decodeStream('latin1')).pipe(iconv.encodeStream('utf8'));
 
   decodedStream
     .pipe(csv({
-      separator: [';', ','], // Tenta ambos os separadores
+      separator: ';', // CORREÇÃO AQUI: Prioriza o ponto e vírgula como separador principal
       mapHeaders: ({ header }) => {
-        // Mapeamento explícito para corrigir caracteres bugados nos cabeçalhos
-        // e padronizar nomes para o frontend esperar.
         let cleanedHeader = header.trim();
 
-        // Correções comuns de caracteres bugados e padronização
-        // Estes nomes devem corresponder EXATAMENTE aos nomes esperados no frontend (App.js tableHeaders)
+        // Mapeamento explícito para corrigir caracteres bugados e padronizar nomes
         if (cleanedHeader.includes('CHAMADO')) cleanedHeader = 'Chamado';
         else if (cleanedHeader.includes('NUMERO REFERENCIA') || cleanedHeader.includes('N?MERO REFERENCIA')) cleanedHeader = 'Numero Referencia';
         else if (cleanedHeader.includes('CONTRATANTE')) cleanedHeader = 'Contratante';
@@ -67,20 +63,20 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         else if (cleanedHeader.includes('STATUS')) cleanedHeader = 'Status';
         else if (cleanedHeader.includes('DATA LIMITE')) cleanedHeader = 'Data Limite';
         else if (cleanedHeader.includes('CLIENTE')) cleanedHeader = 'Cliente';
-        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('CNPJ-CPF')) cleanedHeader = 'CNPJ / CPF';
+        else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('C.N.P.J / C.P.F')) cleanedHeader = 'CNPJ / CPF';
         else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
         else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('T?CNICO')) cleanedHeader = 'Técnico';
         else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
-        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA DO ABONO')) cleanedHeader = 'Justificativa do Abono';
-        // Se o cabeçalho não for mapeado explicitamente, ele será mantido como está.
+        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA DO ABON')) cleanedHeader = 'Justificativa do Abono';
+
         return cleanedHeader;
       }
     }))
     .on('data', (data) => {
       const cleanedData = {};
       // Garante que todas as chaves esperadas existam, mesmo que vazias no CSV
-      for (const header of expectedFrontendHeaders) {
-        let value = data[header] !== undefined ? data[header] : ''; // Usa '' se a chave não existir
+      expectedFrontendHeaders.forEach(header => {
+        let value = data[header] || ''; // Usa string vazia se a chave não existir ou for null/undefined
         if (typeof value === 'string') {
           value = value.trim();
           // Remove "="" e aspas de CNPJ/CPF se ainda vierem do CSV
@@ -88,15 +84,16 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             value = value.substring(2, value.length - 1);
           }
         }
-        cleanedData[header] = value; // Atribui usando o cabeçalho padronizado
-      }
+        cleanedData[header] = value;
+      });
       results.push(cleanedData);
     })
     .on('end', () => {
-      // Garante que a resposta nunca seja um array vazio se houver um problema no CSV
-      if (results.length === 0 && req.file.buffer.length > 0) {
-        console.warn('CSV processado, mas nenhum dado foi extraído. Verifique o formato do CSV e os separadores.');
-        // Pode-se retornar um erro mais específico aqui, ou apenas um array vazio para o frontend lidar.
+      // Garante que a resposta nunca seja um array vazio, se houver um problema no CSV
+      if (results.length === 0) {
+        console.warn('CSV processado, mas nenhum dado válido foi extraído. Verifique o formato do CSV.');
+        // Opcional: Enviar uma resposta com um erro mais específico para o frontend
+        // return res.status(400).json({ error: 'Nenhum dado válido encontrado no CSV. Verifique o formato.' });
       }
       res.json(results);
     })
@@ -107,5 +104,5 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Backend rodando na porta ${port}`);
+  console.log(`Backend server running on port ${port}`);
 });
