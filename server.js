@@ -51,7 +51,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
   decodedStream
     .pipe(csv({
-      separator: ';', // CORREÇÃO AQUI: Prioriza o ponto e vírgula como separador principal
+      separator: ';', // Prioriza o ponto e vírgula como separador principal
       mapHeaders: ({ header }) => {
         let cleanedHeader = header.trim();
 
@@ -62,7 +62,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         else if (cleanedHeader.includes('SERVICO') || cleanedHeader.includes('SERVIÇO') || cleanedHeader.includes('SERVI?O')) cleanedHeader = 'Serviço';
         else if (cleanedHeader.includes('STATUS')) cleanedHeader = 'Status';
         else if (cleanedHeader.includes('DATA LIMITE')) cleanedHeader = 'Data Limite';
-        else if (cleanedHeader.includes('CLIENTE')) cleanedHeader = 'Cliente';
+        // CORREÇÃO AQUI: Mapeamento mais robusto para 'Cliente'
+        else if (cleanedHeader.includes('CLIENTE') || cleanedHeader.includes('NOME CLIENTE') || cleanedHeader.includes('NOME_CLIENTE')) cleanedHeader = 'Cliente';
         else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('C.N.P.J / C.P.F')) cleanedHeader = 'CNPJ / CPF';
         else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
         else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('T?CNICO')) cleanedHeader = 'Técnico';
@@ -89,11 +90,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       results.push(cleanedData);
     })
     .on('end', () => {
-      // Garante que a resposta nunca seja um array vazio, se houver um problema no CSV
       if (results.length === 0) {
         console.warn('CSV processado, mas nenhum dado válido foi extraído. Verifique o formato do CSV.');
-        // Opcional: Enviar uma resposta com um erro mais específico para o frontend
-        // return res.status(400).json({ error: 'Nenhum dado válido encontrado no CSV. Verifique o formato.' });
       }
       res.json(results);
     })
