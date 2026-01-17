@@ -7,7 +7,8 @@ const stream = require('stream');
 const iconv = require('iconv-lite');
 
 const app = express();
-const port = process.env.PORT || 3001;
+// CORREÇÃO: Usar process.env.PORT fornecido pelo ambiente (Render) ou 3001 como fallback local
+const PORT_TO_USE = process.env.PORT || 3001;
 
 // Configuração do CORS
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -67,30 +68,33 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         else if (cleanedHeader.includes('CLIENTE') || cleanedHeader.includes('NOME CLIENTE') || cleanedHeader.includes('NOME_CLIENTE')) cleanedHeader = 'Cliente';
         else if (cleanedHeader.includes('CNPJ / CPF') || cleanedHeader.includes('CNPJCPF') || cleanedHeader.includes('CNPJ-CPF')) cleanedHeader = 'CNPJ / CPF';
         else if (cleanedHeader.includes('CIDADE')) cleanedHeader = 'Cidade';
+        // CORREÇÃO AQUI: Mapeamento mais robusto para 'Técnico'
         else if (cleanedHeader.includes('TECNICO') || cleanedHeader.includes('TÉCNICO') || cleanedHeader.includes('TECNICO')) cleanedHeader = 'Técnico';
         else if (cleanedHeader.includes('PRESTADOR')) cleanedHeader = 'Prestador';
-        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA_DO_ABONO')) cleanedHeader = 'Justificativa do Abono';
-
+        else if (cleanedHeader.includes('JUSTIFICATIVA DO ABONO') || cleanedHeader.includes('JUSTIFICATIVA ABONO')) cleanedHeader = 'Justificativa do Abono';
+        // Se o cabeçalho não for mapeado explicitamente, tenta usá-lo como está
         return cleanedHeader;
       }
     }))
     .on('data', (data) => {
-      const cleanedData = {};
-      // Garante que todas as chaves esperadas existam, mesmo que o valor seja vazio
+      // Pós-processamento para garantir que todas as chaves esperadas existam
+      // e limpar dados, como CNPJ/CPF
+      const processedRow = {};
       expectedFrontendHeaders.forEach(header => {
-        let value = data[header] !== undefined ? data[header] : '';
+        let value = data[header] !== undefined ? String(data[header]).trim() : '';
 
         // Limpeza específica para CNPJ / CPF
-        if (header === 'CNPJ / CPF' && typeof value === 'string') {
+        if (header === 'CNPJ / CPF' && value) {
           value = value.replace(/[^\d]/g, ''); // Remove tudo que não for dígito
         }
-        cleanedData[header] = value;
+        processedRow[header] = value;
       });
-      results.push(cleanedData);
+      results.push(processedRow);
     })
     .on('end', () => {
       if (results.length === 0) {
-        return res.status(200).json({ message: 'Nenhum dado válido encontrado no CSV.', data: [] });
+        // Retorna uma mensagem clara se o CSV estiver vazio ou não puder ser processado
+        return res.status(200).json({ message: 'Arquivo CSV processado, mas nenhum dado válido encontrado.', data: [] });
       }
       res.json(results);
     })
@@ -101,9 +105,10 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('Backend da Tabela de OS está funcionando!');
+  res.send('Backend da Tabela está online!');
 });
 
-app.listen(port, () => {
-  console.log(`Servidor backend rodando em http://localhost:${port}`);
+app.listen(PORT_TO_USE, () => {
+  console.log(`Servidor backend escutando na porta ${PORT_TO_USE}`);
+  console.log(`CORS permitido para: ${frontendUrl}`);
 });
