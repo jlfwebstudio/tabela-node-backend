@@ -81,8 +81,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       separator: ';',
       mapHeaders: ({ header }) => {
         const normalized = normalizeHeader(header);
-        // Tenta mapear o cabeçalho normalizado, se não encontrar, usa o cabeçalho original limpo
-        return headerMapping[normalized] || header.trim(); 
+        return headerMapping[normalized] || header.trim(); // Usa o mapeado ou o original limpo
       }
     }))
     .on('data', (data) => {
